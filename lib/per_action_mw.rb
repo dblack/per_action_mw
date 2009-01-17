@@ -23,6 +23,8 @@ module ActionController
   # :except actions) and the middle command itself. 
 
     class << self
+      attr_accessor :mw_stack
+      
       def middles
         @middles ||= []
       end
@@ -56,10 +58,18 @@ module ActionController
       return true if klass.middleware_whitelist[mw].empty?
     end
 
+    def stack_hash
+      self.class.stack_hash
+    end
+
+    def self.stack_hash
+      @stack_hash ||= {}
+    end
+    
   # The middleware stack, which will be interposed between the request and
   # the response. 
-    def prepare_after_stack
-      @after_stack ||= MiddlewareStack.new do |middleware|
+    def prepare_mw_stack
+      stack_hash[action_name] ||= MiddlewareStack.new do |middleware|
         self.class.middles.each do |mw|
           if can_use_middleware?(mw)
             mw.send(:include, RackParentApp)
@@ -67,7 +77,7 @@ module ActionController
           end
         end
       end
-      @app = @after_stack.build(lambda { |env| s,h,r = self._call(env) })
+      @app = stack_hash[action_name].build(lambda { |env| _call(env) })
     end
 
   # At the bottom of the stack, this method does the actual/traditional
@@ -89,7 +99,7 @@ module ActionController
       log_processing
 
     # This hooks the processing into the middleware stack. 
-      prepare_after_stack
+      prepare_mw_stack
       @send_args = [method, *arguments]
       @app.call(request.env)
 
