@@ -1,0 +1,77 @@
+PerActionMw -- Per Action Middleware for Action Controller
+===========
+
+This experimental plugin lets you add Rack middleware on a per-controller,
+per-action basis. It is used somewhat in the before/after_filter style, but
+is in the spirit of the middleware stack handlers. 
+
+The idea is to bring the benefit of Rack-style middleware down to the controller
+action level of granularity. 
+
+
+Example
+=======
+
+Here's a complete, albeit dinky, example:
+
+  # Create a Rack app. @app will be set for you. You can
+  # also write your own initialize method if you wish. 
+
+    class MyRackApp
+      def call(env)
+
+    # Do stuff before request is handled
+        env["X-David"] = "Black"
+
+    # Handle request
+        status, headers, response = @app.call(env)
+
+    # Do stuff after request is handled and forward response
+        response.body.gsub!(/Dave/, "David")
+        response.to_a
+      end
+    end
+
+
+  # In your controller, call the "middle" class method, which
+  # takes an app class name as its argument and also takes
+  # the :only and :except parameters (via hash keys)
+
+    class ThingsController < ApplicationController
+      middle MyRackApp, :only => "show"
+  
+      def index
+        @things = Thing.find(:all)
+      end
+
+      def show
+        if request.headers["X-David"] == "Black"
+          logger.info("Header got set!")
+        end
+    
+        @thing = Thing.find(params[:id])
+      end
+    end
+
+Your view will be rendered with Dave changed to David throughout. 
+
+How it works
+============
+
+The plugin modifies the ActionController#process method, so that it is
+tied to a middleware stack, much as the ActionController::Dispatcher#dispatch
+method is. When the request comes in, the middleware in the stack is triggered
+"domino"-style, with the final piece of middleware making the call to the "real"
+request handlers. 
+
+The controller class keeps track of which actions (for that controller) use which
+middleware, in the event that you use the :only and/or :except parameters. 
+
+
+Author
+======
+
+David A. Black (dblack@rubypal.com)
+January 16, 2009
+
+Copyright (c) 2009 Ruby Power and Light, LLC, released under the MIT license
